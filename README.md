@@ -16,6 +16,7 @@ python -m psyrip convert a.flac  # Music Converter with files
 python -m psyrip batch | rip | tags <files> | utilities <files>
 python -m psyrip cli -infile a.wav -outfile a.flac -convert_to FLAC -set level=8
 python -m pytest                 # tests
+PSYRIP_HW_TEST=1 python -m pytest tests/test_cd_hardware.py   # with a real audio CD (PSYRIP_HW_EJECT=1: also open/close tray)
 ```
 
 When running from source, ffmpeg must be on `PATH`, in `bin\ffmpeg.exe`, or set in the Control Center. A build with libmp3lame,

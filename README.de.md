@@ -16,6 +16,7 @@ python -m psyrip convert a.flac  # Music Converter mit Dateien
 python -m psyrip batch | rip | tags <Dateien> | utilities <Dateien>
 python -m psyrip cli -infile a.wav -outfile a.flac -convert_to FLAC -set level=8
 python -m pytest                 # Tests
+PSYRIP_HW_TEST=1 python -m pytest tests/test_cd_hardware.py   # mit echter Audio-CD (PSYRIP_HW_EJECT=1: auch Lade auf/zu)
 ```
 
 Beim Start aus dem Quellcode muss ffmpeg im `PATH` liegen, in `bin\ffmpeg.exe` oder im Control Center (Einstellungen) gesetzt werden.
