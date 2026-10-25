@@ -1,6 +1,6 @@
 """Dynamic-Naming-Engine: [artist]\\[album]\\[track] [title] inkl. programmierbarer Aktionen.
 
-Syntax (wie im Original dokumentiert): ``[tag]`` ist ein Tag-Wert, ``[FUNC]arg,arg,...[]``
+Syntax: ``[tag]`` ist ein Tag-Wert, ``[FUNC]arg,arg,...[]``
 ist eine Aktion, die mit ``[]`` abgeschlossen wird. Aktionen lassen sich verschachteln.
 Ein Komma innerhalb eines Arguments wird als ``<comma_>`` geschrieben.
 """

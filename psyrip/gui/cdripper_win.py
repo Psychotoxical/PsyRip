@@ -321,7 +321,7 @@ class CDRipperWindow(QMainWindow):
         self.err_inacc.setChecked(p["err_inacc"])
         self.cancel_insecure.setChecked(p["cancel_insecure"])
         self.after.setCurrentIndex(max(self.after.findData(p["after"]), 0))
-        # Der Laufwerks-Offset gehört zum Laufwerk, nicht zum Profil (wie im Original: gelb hinterlegte Werte) – bleibt unverändert.
+        # Der Laufwerks-Offset gehört zum Laufwerk, nicht zum Profil – bleibt unverändert.
 
     def _del_profile(self):
         if self.profile.currentIndex() > 0:

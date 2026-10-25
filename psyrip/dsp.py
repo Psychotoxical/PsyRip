@@ -702,7 +702,7 @@ class WriteMetadataFile(DSP):
             from xml.sax.saxutils import escape
             tags = j.tag_override if j.tag_override is not None else j.tags
             body = "".join(f'  <tag name="{escape(k)}">{escape(v)}</tag>\n' for k, v in tags.items())
-            xml = f'<?xml version="1.0" encoding="UTF-8"?>\n<dBpoweramp><IDTags>\n{body}</IDTags></dBpoweramp>\n'
+            xml = f'<?xml version="1.0" encoding="UTF-8"?>\n<psyrip><IDTags>\n{body}</IDTags></psyrip>\n'
             out = j.dst.with_suffix(s["ext"] or ".xml")
             if s["xslt"]:
                 from lxml import etree
@@ -728,8 +728,9 @@ class ReadMetadataFile(DSP):
         if s["xslt"]:
             doc = etree.XSLT(etree.parse(s["xslt"]))(doc)
         t = dict(job.tag_override if job.tag_override is not None else job.tags)
-        for el in doc.getroot().iter():
-            if isinstance(el.tag, str) and el.tag not in ("IDTags", "dBpoweramp") and el.text and el.text.strip():
+        root = doc.getroot()
+        for el in root.iter():                       # Wurzelelement (gleich welchen Namens) und IDTags sind nur Container
+            if isinstance(el.tag, str) and el is not root and el.tag != "IDTags" and el.text and el.text.strip():
                 t[(el.get("name") or el.tag).lower()] = el.text.strip()
         job.tag_override = t
 

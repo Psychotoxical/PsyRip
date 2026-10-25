@@ -1,4 +1,4 @@
-"""Encoder-Registry: bildet jedes Format auf ffmpeg-Argumente ab (Original: Plug-in-DLLs + CLI-Encoder)."""
+"""Encoder-Registry: bildet jedes Format auf ffmpeg-Argumente ab; einige Formate laufen über externe CLI-Encoder."""
 from __future__ import annotations
 
 from .i18n import tr
@@ -25,7 +25,7 @@ class Encoder:
     supports_art: bool = True
     max_bits: int = 32
     builder: object = None         # callable(settings) -> list[str]
-    external: tuple[str, str] | None = None   # (Programmname, CLI-Vorlage mit {out}); WAV kommt über stdin (wie im Original)
+    external: tuple[str, str] | None = None   # (Programmname, CLI-Vorlage mit {out}); WAV kommt über stdin
     args_after: bool = False       # Builder-Argumente hinter die CLI-Vorlage setzen (SoX-Effekte)
 
     @property
@@ -158,7 +158,7 @@ _reg(Encoder("m4b (Audio Book)", ".m4b", False, ["-c:a", "aac"], [
     Option("bitrate", "Bitrate", "choice", [(f"{b} kbps", str(b)) for b in (32, 48, 64, 96, 128)], "64")],
     container_args=["-movflags", "+faststart"], builder=lambda s: ["-b:a", f"{s['bitrate']}k"], max_bits=16))
 
-# --- Encoder, die wie im Original als externes Programm (WAV über stdin) laufen ----------
+# --- Encoder, die als externes Programm (WAV über stdin) laufen ----------
 _reg(Encoder("m4a FDK (AAC)", ".m4a", False, [], [
     Option("mode", tr("Qualität / Bitrate"), "choice", [("VBR 3 (~96 kbps)", "-m 3"), ("VBR 4 (~144 kbps)", "-m 4"), ("VBR 5 (~224 kbps)", "-m 5"),
                                                     ("CBR 128 kbps", "-b 128000"), ("CBR 192 kbps", "-b 192000"), ("CBR 256 kbps", "-b 256000")], "-m 4"),

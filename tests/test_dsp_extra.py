@@ -98,4 +98,13 @@ def test_metadata_file_xslt_roundtrip(flac, tmp_path):
     r = run(flac, tmp_path, DspStep("Write Metadata File", {"xslt": str(xsl), "ext": ".txt"}))
     assert "artist=A;" in r.dst.with_suffix(".txt").read_text()
     r2 = run(flac, tmp_path, DspStep("Write Metadata File", {}))
-    assert r2.dst.with_suffix(".xml").exists()
+    assert r2.dst.with_suffix(".xml").read_text(encoding="utf-8").splitlines()[1].startswith("<psyrip><IDTags>")
+
+
+@pytest.mark.parametrize("root", ["psyrip", "OtherApp"])
+def test_read_metadata_file_accepts_any_root(flac, tmp_path, root):
+    flac.with_suffix(".xml").write_text(f'<?xml version="1.0"?><{root}><IDTags><tag name="album">Aus XML</tag>'
+                                        f'<genre>Jazz</genre></IDTags></{root}>', encoding="utf-8")
+    r = run(flac, tmp_path, DspStep("Read metadata file", {}))
+    t = read_tags(r.dst)
+    assert t["album"] == "Aus XML" and t["genre"] == "Jazz"

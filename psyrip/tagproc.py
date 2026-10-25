@@ -1,6 +1,6 @@
 """ID-Tag-Verarbeitung (DSP "ID Tag Processing" und Utility "ID Tag Update").
 
-Reihenfolge wie im Original: Map, Deletions, Manipulation, Additions.
+Reihenfolge: Map, Deletions, Manipulation, Additions.
 """
 from __future__ import annotations
 
