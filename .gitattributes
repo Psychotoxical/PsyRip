@@ -1,0 +1,6 @@
+* text=auto
+# cmd.exe und Inno Setup brauchen Windows-Zeilenenden (LF-only bricht build.bat)
+*.bat text eol=crlf
+*.iss text eol=crlf
+*.png binary
+*.ico binary

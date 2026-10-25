@@ -1,0 +1,6 @@
+PySide6>=6.6
+mutagen>=1.47
+pytest>=8
+numpy>=1.26
+Pillow>=10
+lxml>=5

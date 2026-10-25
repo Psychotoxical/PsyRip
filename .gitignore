@@ -1,0 +1,16 @@
+# Build-Ausgaben (build.bat)
+build/
+dist/
+installer_out/
+psyrip.spec
+
+# mitgeliefertes ffmpeg beim Start aus dem Quellcode (optional, siehe README)
+bin/
+
+# Python / Tests
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
