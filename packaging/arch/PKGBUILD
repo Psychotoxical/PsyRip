@@ -1,0 +1,57 @@
+# Arch/CachyOS-Paket für psyrip. Baut den eingecheckten Stand des Repos, in dem dieser Ordner liegt:
+#   cd packaging/arch && makepkg -si
+# Für ein GitHub-Build: _repo auf https://github.com/Psychotoxical/PsyRip.git setzen.
+pkgname=psyrip
+pkgver=0.3.0
+pkgrel=1
+pkgdesc="Audio-Toolkit: Music/Batch Converter, CD Ripper (Secure + AccurateRip), ID-Tag-Editor, DSP"
+arch=('any')
+url="https://github.com/Psychotoxical/PsyRip"
+license=('custom')
+depends=('python' 'pyside6' 'python-mutagen' 'python-numpy' 'python-pillow' 'python-lxml' 'ffmpeg')
+optdepends=('fdkaac: Encoder m4a FDK'
+            'sox: Encoder DSD (.dsf)')
+makedepends=('git')
+checkdepends=('python-pytest')
+_repo="file://$(realpath "$startdir/../..")"
+source=("$pkgname::git+$_repo")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd "$pkgname"
+  python -c "import psyrip; print(psyrip.__version__)"
+}
+
+check() {
+  cd "$pkgname"
+  QT_QPA_PLATFORM=offscreen python -m pytest -q
+}
+
+package() {
+  cd "$pkgname"
+  local site
+  site=$(python -c "import sysconfig; print(sysconfig.get_path('purelib'))")
+  install -d "$pkgdir$site"
+  cp -r psyrip "$pkgdir$site/"
+  find "$pkgdir$site/psyrip" -name '__pycache__' -prune -exec rm -rf {} +
+  python -m compileall -q -d "$site" -s "$pkgdir" "$pkgdir$site/psyrip"
+
+  install -Dm755 /dev/stdin "$pkgdir/usr/bin/psyrip" <<'EOF'
+#!/bin/sh
+exec python -m psyrip "$@"
+EOF
+  install -Dm644 psyrip/assets/psyrip.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/psyrip.png"
+  install -Dm644 /dev/stdin "$pkgdir/usr/share/applications/psyrip.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=psyrip
+GenericName=Audio Toolkit
+Comment=Convert, rip and tag audio
+Exec=psyrip
+Icon=psyrip
+Terminal=false
+Categories=AudioVideo;Audio;
+StartupWMClass=psyrip
+EOF
+  install -Dm644 README.md README.de.md -t "$pkgdir/usr/share/doc/$pkgname/"
+}

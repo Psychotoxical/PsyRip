@@ -14,3 +14,9 @@ __pycache__/
 .ruff_cache/
 .venv/
 venv/
+
+# makepkg (packaging/arch)
+packaging/arch/src/
+packaging/arch/pkg/
+packaging/arch/psyrip/
+packaging/arch/*.pkg.tar.*
