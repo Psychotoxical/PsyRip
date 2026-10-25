@@ -188,7 +188,7 @@ class _SgIoHdr(ctypes.Structure):
 
 SG_IO = 0x2285
 SG_DXFER_NONE, SG_DXFER_FROM_DEV = -1, -3
-CDROMEJECT = 0x5309
+CDROMEJECT, CDROM_LOCKDOOR = 0x5309, 0x5329
 LINUX_READ_MAX = 26                   # Sektoren je READ CD (~60 KB, unter jeder max_sectors_kb-Grenze)
 
 
@@ -258,8 +258,19 @@ class _LinuxCDDrive:
         return b"".join(out)
 
     def eject(self) -> None:
+        """Lade öffnen per SCSI (ALLOW MEDIUM REMOVAL + START STOP UNIT), wie der Fallback von util-linux eject.
+        Das Kernel-ioctl CDROMEJECT ist nur Ersatz: Hält ein anderer Prozess das Laufwerk offen, lässt sich die
+        Lade nicht entriegeln – CDROMEJECT meldet dann trotzdem Erfolg, die Lade bleibt aber zu."""
         import fcntl
-        fcntl.ioctl(self.fd, CDROMEJECT)
+        try:
+            self._scsi(bytes([0x1E, 0, 0, 0, 0, 0]), 0)       # PREVENT ALLOW MEDIUM REMOVAL: erlauben
+            self._scsi(bytes([0x1B, 0, 0, 0, 0x02, 0]), 0)    # START STOP UNIT: LoEj=1, Start=0 → auswerfen
+        except OSError:
+            try:
+                fcntl.ioctl(self.fd, CDROM_LOCKDOOR, 0)
+            except OSError:
+                pass
+            fcntl.ioctl(self.fd, CDROMEJECT)
 
 
 def _linux_list_cd_drives() -> list[str]:

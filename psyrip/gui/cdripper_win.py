@@ -689,11 +689,15 @@ class CDRipperWindow(QMainWindow):
 
     def _eject(self):
         if self.drive.currentText() and os.name != "nt":
-            try:
-                with cdrip.CDDrive(self.drive.currentText()) as d:
-                    d.eject()
-            except OSError as e:
-                self.statusBar().showMessage(tr("Auswerfen fehlgeschlagen: {0}").format(e))
+            dev = self.drive.currentText()
+
+            def job():                                      # dauert einige Sekunden (Disc bremst ab) – nicht im GUI-Thread
+                try:
+                    with cdrip.CDDrive(dev) as d:
+                        d.eject()
+                except OSError as e:
+                    self.br.info.emit(tr("Auswerfen fehlgeschlagen: {0}").format(e))
+            threading.Thread(target=job, daemon=True).start()
         elif self.drive.currentText():
             import ctypes
             ctypes.windll.winmm.mciSendStringW(f"open {self.drive.currentText()} type cdaudio alias cd", None, 0, None)
