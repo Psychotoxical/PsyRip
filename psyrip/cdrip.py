@@ -1,7 +1,9 @@
-"""CD-Ripper-Kern: TOC lesen, Burst-/Secure-Ripping über die Windows-IOCTL-Schnittstelle,
-AccurateRip-Prüfsummen (v1/v2) samt Datenbankabfrage und MusicBrainz-Metadaten.
+"""CD-Ripper-Kern: TOC lesen, Burst-/Secure-Ripping über die Windows-IOCTL-Schnittstelle bzw. unter Linux
+über SG_IO (SCSI-Befehle READ TOC / READ CD an /dev/srN), AccurateRip-Prüfsummen (v1/v2) samt Datenbankabfrage
+und MusicBrainz-Metadaten.
 
-Hinweis: Die Windows-Treiberschnittstelle (IOCTL_CDROM_RAW_READ) liefert keine C2-Fehlerzeiger.
+Hinweis: Die Windows-Treiberschnittstelle (IOCTL_CDROM_RAW_READ) liefert keine C2-Fehlerzeiger; unter Linux werden
+sie (noch) nicht angefordert, damit beide Plattformen gleich arbeiten.
 Secure-Modus = Mehrfach-Lesen mit Mehrheitsentscheid je Sektor (wie der "Pass 1/2 + Re-Reads"-Ansatz,
 ohne C2).
 """
@@ -13,13 +15,13 @@ import base64
 import ctypes
 import hashlib
 import json
+import os
 import struct
 import threading
 import urllib.error
 import urllib.request
 import wave
 from collections import Counter
-from ctypes import wintypes
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -120,8 +122,9 @@ def parse_toc_bytes(buf: bytes, drive: str = "") -> Disc:
 
 
 # ------------------------------------------------------------------ Laufwerk
-class CDDrive:
+class _WinCDDrive:
     def __init__(self, letter: str):
+        from ctypes import wintypes
         self.letter = letter.rstrip(":\\").upper()
         k = ctypes.windll.kernel32
         k.CreateFileW.restype = wintypes.HANDLE
@@ -141,6 +144,7 @@ class CDDrive:
         self.close()
 
     def _ioctl(self, code: int, inbuf: bytes | None, outsize: int) -> bytes:
+        from ctypes import wintypes
         out = ctypes.create_string_buffer(outsize)
         ret = wintypes.DWORD(0)
         inb = ctypes.create_string_buffer(inbuf, len(inbuf)) if inbuf else None
@@ -165,10 +169,110 @@ class CDDrive:
         return self._ioctl(IOCTL_CDROM_RAW_READ, struct.pack("<qLL", lba * 2048, count, 2), count * SECTOR)
 
 
-def list_cd_drives() -> list[str]:
+def _win_list_cd_drives() -> list[str]:
     import string
     k = ctypes.windll.kernel32
     return [f"{c}:" for c in string.ascii_uppercase if k.GetDriveTypeW(f"{c}:\\") == 5]
+
+
+class _SgIoHdr(ctypes.Structure):
+    """struct sg_io_hdr aus <scsi/sg.h>."""
+    _fields_ = [("interface_id", ctypes.c_int), ("dxfer_direction", ctypes.c_int), ("cmd_len", ctypes.c_ubyte),
+                ("mx_sb_len", ctypes.c_ubyte), ("iovec_count", ctypes.c_ushort), ("dxfer_len", ctypes.c_uint),
+                ("dxferp", ctypes.c_void_p), ("cmdp", ctypes.c_void_p), ("sbp", ctypes.c_void_p),
+                ("timeout", ctypes.c_uint), ("flags", ctypes.c_uint), ("pack_id", ctypes.c_int), ("usr_ptr", ctypes.c_void_p),
+                ("status", ctypes.c_ubyte), ("masked_status", ctypes.c_ubyte), ("msg_status", ctypes.c_ubyte),
+                ("sb_len_wr", ctypes.c_ubyte), ("host_status", ctypes.c_ushort), ("driver_status", ctypes.c_ushort),
+                ("resid", ctypes.c_int), ("duration", ctypes.c_uint), ("info", ctypes.c_uint)]
+
+
+SG_IO = 0x2285
+SG_DXFER_NONE, SG_DXFER_FROM_DEV = -1, -3
+CDROMEJECT = 0x5309
+LINUX_READ_MAX = 26                   # Sektoren je READ CD (~60 KB, unter jeder max_sectors_kb-Grenze)
+
+
+class _LinuxCDDrive:
+    """Linux: SCSI-Befehle per SG_IO an /dev/srN. Braucht Lese-/Schreibrechte auf das Gerät
+    (Gruppe „optical“ oder die uaccess-ACL der angemeldeten Sitzung)."""
+
+    def __init__(self, device: str):
+        self.letter = device                                  # Gerätepfad, z. B. /dev/sr0
+        try:                                                  # O_NONBLOCK: Öffnen klappt auch ohne Medium
+            self.fd = os.open(device, os.O_RDWR | os.O_NONBLOCK)
+        except OSError:
+            try:
+                self.fd = os.open(device, os.O_RDONLY | os.O_NONBLOCK)
+            except OSError as e:
+                raise OSError(e.errno, tr("Laufwerk {0}: kann nicht geöffnet werden").format(device)) from e
+
+    def close(self):
+        if self.fd is not None:
+            os.close(self.fd)
+            self.fd = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        self.close()
+
+    def _scsi(self, cdb: bytes, outsize: int, timeout_ms: int = 30000) -> bytes:
+        import fcntl
+        cmd = ctypes.create_string_buffer(cdb, len(cdb))
+        out = ctypes.create_string_buffer(max(outsize, 1))
+        sense = ctypes.create_string_buffer(32)
+        h = _SgIoHdr(interface_id=ord("S"), dxfer_direction=SG_DXFER_FROM_DEV if outsize else SG_DXFER_NONE,
+                     cmd_len=len(cdb), mx_sb_len=len(sense), dxfer_len=outsize,
+                     dxferp=ctypes.cast(out, ctypes.c_void_p) if outsize else None,
+                     cmdp=ctypes.cast(cmd, ctypes.c_void_p), sbp=ctypes.cast(sense, ctypes.c_void_p), timeout=timeout_ms)
+        fcntl.ioctl(self.fd, SG_IO, h)
+        if h.status or h.host_status or h.driver_status or (h.info & 1):
+            key = sense.raw[2] & 0x0F if h.sb_len_wr > 2 else 0
+            asc = sense.raw[12] if h.sb_len_wr > 13 else 0
+            ascq = sense.raw[13] if h.sb_len_wr > 13 else 0
+            raise OSError(5, tr("SCSI-Befehl {0:02X} fehlgeschlagen (Sense {1:X}/{2:02X}/{3:02X})").format(cdb[0], key, asc, ascq))
+        return out.raw[:outsize - h.resid]
+
+    def read_toc(self) -> Disc:
+        # READ TOC, Format 0, MSF-Adressen – gleiches Layout wie CDROM_TOC unter Windows
+        return parse_toc_bytes(self._scsi(struct.pack(">BBBxxxBHx", 0x43, 0x02, 0, 0, 804), 804), self.letter)
+
+    def set_max_speed(self) -> None:
+        """SET CD SPEED auf Maximum (0xFFFF). Nicht jedes Laufwerk unterstützt das; ein Fehler ist harmlos."""
+        try:
+            self._scsi(struct.pack(">BBHHxxxxxx", 0xBB, 0, 0xFFFF, 0xFFFF), 0)
+        except OSError:
+            pass
+
+    def read_sectors(self, lba: int, count: int) -> bytes:
+        """Rohes CD-DA: count*2352 Bytes per READ CD (Sektortyp CD-DA, nur Nutzdaten)."""
+        out = []
+        for o in range(0, count, LINUX_READ_MAX):
+            n = min(LINUX_READ_MAX, count - o)
+            cdb = struct.pack(">BBiBHBBx", 0xBE, 0x04, lba + o, n >> 16, n & 0xFFFF, 0x10, 0)
+            data = self._scsi(cdb, n * SECTOR)
+            if len(data) != n * SECTOR:
+                raise OSError(5, tr("Laufwerk lieferte zu wenig Daten"))
+            out.append(data)
+        return b"".join(out)
+
+    def eject(self) -> None:
+        import fcntl
+        fcntl.ioctl(self.fd, CDROMEJECT)
+
+
+def _linux_list_cd_drives() -> list[str]:
+    import glob
+    import re
+    devs = glob.glob("/dev/sr[0-9]*")
+    return sorted(devs, key=lambda d: int(re.sub(r"\D", "", d) or 0))
+
+
+if os.name == "nt":
+    CDDrive, list_cd_drives = _WinCDDrive, _win_list_cd_drives
+else:
+    CDDrive, list_cd_drives = _LinuxCDDrive, _linux_list_cd_drives
 
 
 # --------------------------------------------------------------- Rippen

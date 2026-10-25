@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 
 from . import analysis, tagproc
-from .converter import ConvertSettings, Converter, naming_context
+from .converter import ConvertSettings, Converter, _relative, naming_context
 from .dsp import Job
 from .encoders import ENCODERS
 from .naming import render
@@ -50,7 +50,7 @@ def arrange_audio(files: list[Path], root: Path, arrangement: str, overwrite: bo
     for f in files:
         info, tags = read_info(f), read_tags(f)
         rel = render(arrangement, naming_context(tags, f, _E, info))
-        dst = root / (rel + f.suffix)
+        dst = root / _relative(rel + f.suffix)
         if dst == f:
             continue
         if dst.exists() and not overwrite:

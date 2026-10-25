@@ -1,4 +1,4 @@
-"""Persistente Einstellungen und Profile (JSON in %APPDATA%\\psyrip)."""
+"""Persistente Einstellungen und Profile (JSON in %APPDATA%\\psyrip bzw. ~/.config/psyrip)."""
 from __future__ import annotations
 
 import copy
@@ -8,18 +8,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .converter import ConvertSettings, DspStep, OutputSpec
-
-def music_folder() -> str:
-    """Windows-Ordner „Musik“ des Benutzers (berücksichtigt Umleitungen, z. B. nach OneDrive)."""
-    try:
-        import ctypes
-        buf = ctypes.create_unicode_buffer(260)
-        if ctypes.windll.shell32.SHGetFolderPathW(None, 13, None, 0, buf) == 0 and buf.value:   # CSIDL_MYMUSIC
-            return buf.value
-    except (AttributeError, OSError):
-        pass
-    return str(Path.home() / "Music")
-
+from .paths import config_dir, music_folder
 
 def output_folder(saved: str | None) -> str:
     """Gespeicherter Ausgabeordner, falls er noch existiert – sonst (auch bei "" = Standard) der Musik-Ordner."""
@@ -36,11 +25,11 @@ def portable_folder(folder: str) -> str:
     return "" if same else folder
 
 
-APPDATA = Path(os.environ.get("APPDATA", Path.home())) / "psyrip"
+APPDATA = config_dir()
 CONFIG = APPDATA / "config.json"
 PROFILES = APPDATA / "profiles"
 
-# rip_folder "" = Windows-Musik-Ordner des jeweiligen Benutzers (siehe output_folder/portable_folder)
+# rip_folder "" = Musik-Ordner des jeweiligen Benutzers (siehe output_folder/portable_folder)
 DEFAULTS = {
     "ffmpeg": "", "tools": {}, "rip_profiles": {}, "discogs_token": "", "write_mb_tags": True, "cover_source": "auto", "cover_size": 1500, "itunes_country": "us", "internet": True, "workers": max(1, (os.cpu_count() or 2) - 1), "low_priority": False, "auto_read_disc": True,
     "rip_naming": "[IFVALUE]album artist,[album artist],[IFCOMP]Various Artists[][IF!COMP][artist][][]\\[album]\\[track] [artist] - [title]",

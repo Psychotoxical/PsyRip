@@ -1,6 +1,6 @@
 ﻿# psyrip
 
-An audio toolkit for Windows: **Music Converter**, **Batch Converter**, **CD Ripper** (secure ripping + AccurateRip,
+An audio toolkit for Windows and Linux: **Music Converter**, **Batch Converter**, **CD Ripper** (secure ripping + AccurateRip,
 MusicBrainz metadata, large cover art), **ID Tag Editor**, **DSP effects**, **utilities** and a **Control Center**.
 Written in Python with PySide6, mutagen and ffmpeg.
 
@@ -20,6 +20,27 @@ python -m pytest                 # tests
 
 When running from source, ffmpeg must be on `PATH`, in `bin\ffmpeg.exe`, or set in the Control Center. A build with libmp3lame,
 libopus, libvorbis and libspeex is required for all encoders (e.g. the Gyan “full” build).
+
+## Linux
+
+psyrip also runs on Linux (tested on CachyOS/Arch, KDE Plasma on Wayland, Python 3.14, PySide6 6.12).
+
+```
+sudo pacman -S ffmpeg python          # or your distribution's packages
+./start.sh                            # creates .venv on first run and installs requirements.txt
+./start.sh rip                        # same arguments as python -m psyrip
+```
+
+Differences from Windows:
+
+- Settings live in `~/.config/psyrip` (instead of `%APPDATA%\psyrip`); the default output folder is the XDG music folder.
+- CD drives are `/dev/sr0`, `/dev/sr1` … Reading uses SG_IO (READ TOC / READ CD). The user needs read/write access to the
+  device (group `optical` or the usual uaccess ACL of the desktop session). Secure ripping, offset detection and AccurateRip
+  were tested with a real disc.
+- “Desktop integration” in the Control Center creates a start menu entry, “Open with” entries and a Dolphin context menu
+  (submenu “psyrip”) under `~/.local/share` instead of the Explorer entries.
+- “Shut down after ripping” uses `shutdown -h +1` (cancel: `shutdown -c`), “Low priority” uses `nice`.
+- The Windows EXE/installer (`build.bat`) is Windows-only.
 
 ## Installer / EXE
 

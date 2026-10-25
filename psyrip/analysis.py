@@ -32,9 +32,10 @@ def ffmpeg_path() -> str:
     """Reihenfolge: Pfad aus den Einstellungen → mitgeliefertes ffmpeg → PATH."""
     if _ffmpeg_override and Path(_ffmpeg_override).exists():
         return _ffmpeg_override
+    name = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
     for d in bundled_bin():
-        if (d / "ffmpeg.exe").exists():
-            return str(d / "ffmpeg.exe")
+        if (d / name).is_file():
+            return str(d / name)
     found = shutil.which("ffmpeg")
     if not found:
         from .i18n import tr

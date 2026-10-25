@@ -98,14 +98,14 @@ TOOL_PATHS: dict[str, str] = {}      # vom Control Center gesetzt: Programmname 
 
 
 def find_tool(name: str) -> str | None:
-    import os
     import shutil
     from pathlib import Path
     p = TOOL_PATHS.get(name)
     if p and Path(p).exists():
         return p
     from .analysis import bundled_bin
-    roots = [*bundled_bin(), Path(os.environ.get("APPDATA", ".")) / "psyrip" / "tools"]
+    from .paths import config_dir
+    roots = [*bundled_bin(), config_dir() / "tools"]
     for r in roots:
         for cand in (r / name, r / f"{name}.exe"):
             if cand.exists():

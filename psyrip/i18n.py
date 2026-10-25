@@ -1,7 +1,7 @@
 """Sprachumschaltung. Englisch ist die Standardsprache, Deutsch die zweite Sprache.
 
 Im Quelltext steht der deutsche Text; ``tr()`` liefert ihn unverändert (Deutsch) oder den englischen Katalogeintrag.
-Die Sprache steht in ``%APPDATA%\\psyrip\\config.json`` ("language": "en" | "de"); ``PSYRIP_LANG`` überschreibt sie.
+Die Sprache steht in ``%APPDATA%\\psyrip\\config.json`` bzw. ``~/.config/psyrip/config.json`` ("language": "en" | "de"); ``PSYRIP_LANG`` überschreibt sie.
 """
 from __future__ import annotations
 
@@ -16,7 +16,8 @@ _lang: str | None = None
 
 
 def _config_path() -> Path:
-    return Path(os.environ.get("APPDATA", Path.home())) / "psyrip" / "config.json"
+    from .paths import config_dir
+    return config_dir() / "config.json"
 
 
 def language() -> str:

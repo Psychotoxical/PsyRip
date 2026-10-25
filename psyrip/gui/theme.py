@@ -5,6 +5,7 @@ damit Checkboxen, Radiobuttons und Comboboxen auch ohne Bildressourcen modern au
 """
 from __future__ import annotations
 
+import sys
 import tempfile
 from pathlib import Path
 
@@ -106,7 +107,7 @@ def mode_icon(mode: str):
 
 def build_qss(c: dict, icons: dict[str, str]) -> str:
     return f"""
-* {{ font-family: "Segoe UI Variable Text", "Segoe UI"; font-size: 10pt; color: {c['text']}; }}
+* {{ font-family: "Segoe UI Variable Text", "Segoe UI", "Noto Sans", "DejaVu Sans", sans-serif; font-size: 10pt; color: {c['text']}; }}
 QMainWindow, QDialog, QWidget#page {{ background: {c['bg']}; }}
 QToolTip {{ background: {c['surface']}; color: {c['text']}; border: 1px solid {c['border_strong']}; padding: 4px 6px; }}
 QLabel {{ background: transparent; }}
@@ -198,7 +199,7 @@ QGroupBox#encoder::title {{ height: 0; padding: 0; }}
 QLabel#artbox {{ background: {c['surface2']}; border: 1px dashed {c['border_strong']}; border-radius: 10px; color: {c['muted']}; }}
 QFrame#card {{ background: {c['surface']}; border: 1px solid {c['border']}; border-radius: 14px; }}
 QFrame#card:hover {{ border-color: {c['accent']}; background: {c['accent_soft']}; }}
-QLabel#cardIcon {{ font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets"; font-size: 26pt; color: {c['accent']}; }}
+QLabel#cardIcon {{ font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets", "Noto Sans Symbols", "Noto Sans Symbols 2", "DejaVu Sans"; font-size: 26pt; color: {c['accent']}; }}
 QLabel#cardTitle {{ font-size: 13pt; font-weight: 600; }}
 QLabel#cardText {{ color: {c['muted']}; }}
 QWidget#side {{ background: {c['surface']}; border-right: 1px solid {c['border']}; }}
@@ -270,7 +271,11 @@ def app_icon():
 
 
 def set_app_id() -> None:
-    """Eigene AppUserModelID, damit die Taskleiste psyrip mit eigenem Symbol gruppiert (nicht unter python.exe)."""
+    """Eigene AppUserModelID, damit die Taskleiste psyrip mit eigenem Symbol gruppiert (nicht unter python.exe).
+    Linux: Desktop-Dateiname (Wayland-App-ID), passend zu psyrip.desktop aus der Desktop-Integration."""
+    if sys.platform != "win32":
+        QGuiApplication.setDesktopFileName("psyrip")
+        return
     try:
         import ctypes
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("psyrip.audio.toolkit")
@@ -284,7 +289,7 @@ def is_dark_system() -> bool:
         import winreg
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize") as k:
             return winreg.QueryValueEx(k, "AppsUseLightTheme")[0] == 0
-    except OSError:
+    except (ImportError, OSError):                          # Linux: kein winreg – Qt fragt das Desktop-Theme ab
         pass
     try:
         return QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark
@@ -329,7 +334,7 @@ def apply(app: QApplication, dark: bool | str = False) -> None:
         pal.setColor(role, QColor(c[key]))
     app.setPalette(pal)
     fams = set(QFontDatabase.families())
-    fam = "Segoe UI Variable Text" if "Segoe UI Variable Text" in fams else "Segoe UI"
+    fam = next((f for f in ("Segoe UI Variable Text", "Segoe UI") if f in fams), None) or QFontDatabase.systemFont(QFontDatabase.GeneralFont).family()
     app.setFont(QFont(fam, 10))
     icons = _make_icons(c)
     _ICONS.clear()

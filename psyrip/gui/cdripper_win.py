@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ..i18n import tr
+import os
 import threading
 from pathlib import Path
 
@@ -681,10 +682,19 @@ class CDRipperWindow(QMainWindow):
                 self._eject()
             elif mode == "shutdown":
                 import subprocess
-                subprocess.run(["shutdown", "/s", "/t", "60", "/c", tr("psyrip: Rip abgeschlossen – Herunterfahren in 60 s (abbrechen: shutdown /a)")])
+                if os.name == "nt":
+                    subprocess.run(["shutdown", "/s", "/t", "60", "/c", tr("psyrip: Rip abgeschlossen – Herunterfahren in 60 s (abbrechen: shutdown /a)")])
+                else:                                       # systemd: Herunterfahren in 1 min, abbrechen mit shutdown -c
+                    subprocess.run(["shutdown", "-h", "+1", tr("psyrip: Rip abgeschlossen – Herunterfahren in 1 min (abbrechen: shutdown -c)")])
 
     def _eject(self):
-        if self.drive.currentText():
+        if self.drive.currentText() and os.name != "nt":
+            try:
+                with cdrip.CDDrive(self.drive.currentText()) as d:
+                    d.eject()
+            except OSError as e:
+                self.statusBar().showMessage(tr("Auswerfen fehlgeschlagen: {0}").format(e))
+        elif self.drive.currentText():
             import ctypes
             ctypes.windll.winmm.mciSendStringW(f"open {self.drive.currentText()} type cdaudio alias cd", None, 0, None)
             ctypes.windll.winmm.mciSendStringW("set cd door open", None, 0, None)

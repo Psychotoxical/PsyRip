@@ -1,8 +1,8 @@
 """Control Center: Startfenster, Codec-/DSP-Übersicht, Internet, erweiterte Einstellungen, Explorer-Integration."""
 from __future__ import annotations
 
+import os
 import sys
-import winreg
 from pathlib import Path
 
 from PySide6.QtCore import QProcess, QSize, Qt
@@ -21,6 +21,15 @@ from .converter_win import ConverterWindow
 from .utilities_win import UtilitiesWindow
 
 VERB = "psyrip.convert"
+# Segoe-Fluent-Icons-Glyphen gibt es nur unter Windows – sonst Unicode-Symbole aus den Standard-Schriften
+_GLYPHS = {"\ue80f": "⌂", "\ue8d6": "♫", "\ue713": "⚙", "\ue8a7": "⧉", "\ue8ab": "⇄", "\ue958": "◉",
+           "\ue8b7": "▤", "\ue8ec": "✎", "\ue90f": "⚒"}
+
+
+def _glyph(g: str) -> str:
+    return g if os.name == "nt" else _GLYPHS.get(g, g)
+
+
 EXTS = [".mp3", ".flac", ".m4a", ".ogg", ".opus", ".wav", ".aif", ".aiff", ".wv", ".ape", ".wma"]
 
 
@@ -33,6 +42,10 @@ def _cmd(arg: str) -> str:
 
 
 def register_shell() -> None:
+    if os.name != "nt":
+        from .shell_linux import register_shell as linux_register
+        return linux_register()
+    import winreg
     for ext in EXTS:
         for verb, label, arg in ((VERB, "Convert To (psyrip)", "convert"), ("psyrip.tags", "Edit ID-Tags (psyrip)", "tags")):
             base = rf"Software\Classes\SystemFileAssociations\{ext}\shell\{verb}"
@@ -47,6 +60,10 @@ def register_shell() -> None:
 
 
 def unregister_shell() -> None:
+    if os.name != "nt":
+        from .shell_linux import unregister_shell as linux_unregister
+        return linux_unregister()
+    import winreg
     for ext in EXTS:
         for verb in (VERB, "psyrip.tags"):
             base = rf"Software\Classes\SystemFileAssociations\{ext}\shell\{verb}"
@@ -69,7 +86,7 @@ class Card(QFrame):
         row = QHBoxLayout(self)
         row.setContentsMargins(20, 16, 20, 16)
         row.setSpacing(16)
-        ic = QLabel(glyph)
+        ic = QLabel(_glyph(glyph))
         ic.setObjectName("cardIcon")
         ic.setFixedWidth(52)
         ic.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
@@ -123,10 +140,10 @@ class ControlCenter(QMainWindow):
         self.stack = QStackedWidget()
         lay.addWidget(self.stack, 1)
         pages = [("", tr("Start"), self._launcher()), ("", tr("Audio-Codecs"), self._codecs()),
-                 ("", tr("Einstellungen"), self._settings()), ("", tr("Windows-Integration"), self._integration())]
+                 ("", tr("Einstellungen"), self._settings()), ("", tr("Windows-Integration") if os.name == "nt" else tr("Desktop-Integration"), self._integration())]
         for glyph, name, page in pages:
-            it = QListWidgetItem(f"{glyph}   {name}")
-            it.setData(Qt.UserRole + 1, glyph)
+            it = QListWidgetItem(f"{_glyph(glyph)}   {name}")
+            it.setData(Qt.UserRole + 1, _glyph(glyph))
             self.nav.addItem(it)
             self.stack.addWidget(self._page(name, page))
         self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
@@ -141,7 +158,7 @@ class ControlCenter(QMainWindow):
         self.theme_btn.setIcon(theme.mode_icon(mode))
         self.theme_btn.setIconSize(QSize(18, 18))
         self.theme_btn.setText(f"  {tr(label)}")
-        self.theme_btn.setToolTip(tr("Design wechseln: Automatisch → Hell → Dunkel") + "\n" + tr("Automatisch (wie Windows)") + " / "
+        self.theme_btn.setToolTip(tr("Design wechseln: Automatisch → Hell → Dunkel") + "\n" + (tr("Automatisch (wie Windows)") if os.name == "nt" else tr("Automatisch (wie das System)")) + " / "
                                   + tr("Hell") + " / " + tr("Dunkel"))
 
     def _cycle_theme(self):
@@ -232,7 +249,7 @@ class ControlCenter(QMainWindow):
         f = QFormLayout(w)
         self.ff = QLineEdit(self.cfg["ffmpeg"])
         fb = QPushButton("…")
-        fb.clicked.connect(lambda: self.ff.setText(QFileDialog.getOpenFileName(self, "ffmpeg.exe", "", "ffmpeg (ffmpeg.exe)")[0] or self.ff.text()))
+        fb.clicked.connect(lambda: self.ff.setText(QFileDialog.getOpenFileName(self, "ffmpeg", "", "ffmpeg (ffmpeg.exe)" if os.name == "nt" else "ffmpeg (ffmpeg*)")[0] or self.ff.text()))
         row = QHBoxLayout()
         row.addWidget(self.ff)
         row.addWidget(fb)
@@ -242,7 +259,7 @@ class ControlCenter(QMainWindow):
             e = QLineEdit(self.cfg["tools"].get(tool, ""))
             e.setPlaceholderText(encoders.find_tool(tool) or tr("nicht gefunden"))
             b = QPushButton("…")
-            b.clicked.connect(lambda _=False, e=e, t=tool: e.setText(QFileDialog.getOpenFileName(self, t, "", tr("Programm (*.exe)"))[0] or e.text()))
+            b.clicked.connect(lambda _=False, e=e, t=tool: e.setText(QFileDialog.getOpenFileName(self, t, "", tr("Programm (*.exe)") if os.name == "nt" else tr("Programm (*)"))[0] or e.text()))
             r = QHBoxLayout()
             r.addWidget(e)
             r.addWidget(b)
@@ -277,7 +294,7 @@ class ControlCenter(QMainWindow):
         self.lang.setCurrentIndex(max(self.lang.findData(i18n_language()), 0))
         f.addRow("Sprache / Language" if i18n_language() == "de" else "Language", self.lang)
         self.theme = QComboBox()
-        for label, code in ((tr("Automatisch (wie Windows)"), "auto"), (tr("Hell"), "light"), (tr("Dunkel"), "dark")):
+        for label, code in (((tr("Automatisch (wie Windows)") if os.name == "nt" else tr("Automatisch (wie das System)")), "auto"), (tr("Hell"), "light"), (tr("Dunkel"), "dark")):
             self.theme.addItem(label, code)
         self.theme.setCurrentIndex(max(self.theme.findData(self.cfg["theme"]), 0))
         self.fields = QLineEdit(", ".join(self.cfg["default_tag_fields"]))
@@ -331,15 +348,20 @@ class ControlCenter(QMainWindow):
         if getattr(sys, "frozen", False):
             QProcess.startDetached(sys.executable, [])
         else:
-            QProcess.startDetached(sys.executable, ["-m", "psyrip"])
+            QProcess.startDetached(sys.executable, ["-m", "psyrip"], str(Path(__file__).resolve().parent.parent.parent))
         QApplication.quit()
 
     def _integration(self) -> QWidget:
         w = QWidget()
         v = QVBoxLayout(w)
-        v.addWidget(QLabel(tr("Fügt dem Explorer-Kontextmenü (nur für den aktuellen Benutzer, Registry HKCU) die Einträge\n"
-                           "„Convert To (psyrip)“ und „Edit ID-Tags (psyrip)“ für Audiodateien hinzu.\n"
-                           "Unter Windows 11 erscheinen sie unter „Weitere Optionen anzeigen“.")))
+        if os.name == "nt":
+            v.addWidget(QLabel(tr("Fügt dem Explorer-Kontextmenü (nur für den aktuellen Benutzer, Registry HKCU) die Einträge\n"
+                               "„Convert To (psyrip)“ und „Edit ID-Tags (psyrip)“ für Audiodateien hinzu.\n"
+                               "Unter Windows 11 erscheinen sie unter „Weitere Optionen anzeigen“.")))
+        else:
+            v.addWidget(QLabel(tr("Legt (nur für den aktuellen Benutzer, unter ~/.local/share) einen Startmenü-Eintrag an und fügt\n"
+                               "„Convert To (psyrip)“ und „Edit ID-Tags (psyrip)“ für Audiodateien zu „Öffnen mit“ und\n"
+                               "zum Dolphin-Kontextmenü (Untermenü „psyrip“) hinzu.")))
         a, r = QPushButton(tr("Einträge installieren")), QPushButton(tr("Einträge entfernen"))
         a.clicked.connect(lambda: (register_shell(), self.statusBar().showMessage(tr("Kontextmenü installiert."))))
         r.clicked.connect(lambda: (unregister_shell(), self.statusBar().showMessage(tr("Kontextmenü entfernt."))))

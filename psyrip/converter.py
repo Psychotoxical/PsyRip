@@ -68,7 +68,7 @@ def naming_context(tags: dict[str, str], src: Path, enc: Encoder, info) -> Namin
     total = str(tags.get("discnumber", "")).split("/")
     multi_disc = disc > 1 or (len(total) > 1 and total[1].isdigit() and int(total[1]) > 1)
     return NamingContext(
-        tags=t, origpath=str(src.parent), origfilename=src.stem, origdrive=src.drive + "\\",
+        tags=t, origpath=str(src.parent), origfilename=src.stem, origdrive=(src.drive + "\\") if src.drive else src.anchor,
         extension=src.suffix.lstrip("."), compilation=comp, disc=max(disc, 2) if multi_disc else 1,
         source_date=_dt.datetime.fromtimestamp(src.stat().st_mtime) if src.exists() else None,
         extra={"k_bitrate": str(info.bitrate // 1000) if info.bitrate else "", "encoder": enc.name,
@@ -78,8 +78,9 @@ def naming_context(tags: dict[str, str], src: Path, enc: Encoder, info) -> Namin
 def _relative(rel: str | Path) -> Path:
     """Macht einen berechneten Pfad relativ zum Ausgabeordner: ohne Laufwerk/Wurzel und ohne '..'-Teile
     (sonst würde z. B. [origpath] den Ausgabeordner ersetzen und zurück in die Quelle schreiben)."""
-    p = Path(rel)
-    parts = [x for x in p.parts if x not in ("..", ".") and x != p.anchor and not x.endswith(":\\") and x != "\\"]
+    # Das Namensschema trennt Ordner mit "\\" – unter Linux/macOS ist das kein Pfadtrenner.
+    parts = [x for x in str(rel).replace("\\", "/").split("/")
+             if x and x not in ("..", ".") and not x.endswith(":")]
     return Path(*parts) if parts else Path()
 
 
@@ -266,6 +267,14 @@ class Converter:
         self.on_progress(idx, 1.0)
         self.on_result(idx, res)
 
+    def _lower_priority(self, proc: subprocess.Popen) -> None:
+        """Linux/macOS: niedrige Priorität per nice (Windows nutzt BELOW_NORMAL_PRIORITY_CLASS beim Start)."""
+        if self.s.low_priority and os.name != "nt":
+            try:
+                os.setpriority(os.PRIO_PROCESS, proc.pid, 10)
+            except OSError:
+                pass
+
     def _encode(self, idx: int, job: Job, enc: Encoder, res: Result):
         job.dst.parent.mkdir(parents=True, exist_ok=True)
         tmp = job.dst.with_name(job.dst.stem + ".psyrip-tmp" + job.dst.suffix)
@@ -297,11 +306,13 @@ class Converter:
 
         ff = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=flags)
         procs.append(ff)
+        self._lower_priority(ff)
         threads = []
         if tool_cmd:
             tool = subprocess.Popen(tool_cmd, stdin=ff.stdout, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, creationflags=flags)
             ff.stdout.close()
             procs.append(tool)
+            self._lower_priority(tool)
             threads = [threading.Thread(target=pump, args=(ff.stderr,), daemon=True),
                        threading.Thread(target=lambda: err_buf.extend(l.decode("utf-8", "replace").strip() for l in tool.stderr if l.strip()), daemon=True)]
         else:
