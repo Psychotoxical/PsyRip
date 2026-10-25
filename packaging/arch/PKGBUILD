@@ -1,6 +1,5 @@
-# Arch/CachyOS-Paket für psyrip. Baut den eingecheckten Stand des Repos, in dem dieser Ordner liegt:
+# Arch/CachyOS-Paket für psyrip. Baut den aktuellen Stand von main auf GitHub:
 #   cd packaging/arch && makepkg -si
-# Für ein GitHub-Build: _repo auf https://github.com/Psychotoxical/PsyRip.git setzen.
 pkgname=psyrip
 pkgver=0.3.0
 pkgrel=1
@@ -13,8 +12,7 @@ optdepends=('fdkaac: Encoder m4a FDK'
             'sox: Encoder DSD (.dsf)')
 makedepends=('git')
 checkdepends=('python-pytest')
-_repo="file://$(realpath "$startdir/../..")"
-source=("$pkgname::git+$_repo")
+source=("$pkgname::git+$url.git#branch=main")
 sha256sums=('SKIP')
 
 pkgver() {
