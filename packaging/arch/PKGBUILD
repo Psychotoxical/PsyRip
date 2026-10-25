@@ -34,7 +34,7 @@ package() {
   install -d "$pkgdir$site"
   cp -r psyrip "$pkgdir$site/"
   find "$pkgdir$site/psyrip" -name '__pycache__' -prune -exec rm -rf {} +
-  python -m compileall -q -d "$site" -s "$pkgdir" "$pkgdir$site/psyrip"
+  python -m compileall -q -s "$pkgdir" "$pkgdir$site/psyrip"
 
   install -Dm755 /dev/stdin "$pkgdir/usr/bin/psyrip" <<'EOF'
 #!/bin/sh
