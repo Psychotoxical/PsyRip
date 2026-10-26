@@ -19,12 +19,31 @@ python -m pytest                 # tests
 PSYRIP_HW_TEST=1 python -m pytest tests/test_cd_hardware.py   # with a real audio CD (PSYRIP_HW_EJECT=1: also open/close tray)
 ```
 
-When running from source, ffmpeg must be on `PATH`, in `bin\ffmpeg.exe`, or set in the Control Center. A build with libmp3lame,
+When running from source, ffmpeg must be on `PATH`, in `bin\ffmpeg.exe` (Linux: `bin/ffmpeg`), or set in the Control Center. A build with libmp3lame,
 libopus, libvorbis and libspeex is required for all encoders (e.g. the Gyan “full” build).
 
 ## Linux
 
-psyrip also runs on Linux (tested on CachyOS/Arch, KDE Plasma on Wayland, Python 3.14, PySide6 6.12).
+psyrip also runs on Linux – the same code as on Windows; platform differences are decided at runtime.
+Tested on CachyOS/Arch, KDE Plasma on Wayland, Python 3.14, PySide6 6.12 and an LG BH10LS30.
+
+### Arch / CachyOS: install the package
+
+`packaging/arch/PKGBUILD` builds the current state of `main` on GitHub as a pacman package. It uses the distribution's Python
+packages (`pyside6`, `python-mutagen`, `python-numpy`, `python-pillow`, `python-lxml`) and `ffmpeg`.
+
+```
+cd packaging/arch
+makepkg -si                           # build and install (pacman pulls in missing dependencies)
+psyrip                                # Control Center – or “psyrip” in the start menu
+psyrip rip | convert <files> | tags <files> | cli …
+```
+
+The package provides the `psyrip` command, a start menu entry and the icon. It builds what is on GitHub – local changes only
+after a push. The package version comes from `psyrip/__init__.py`; to install a new build with the same version on top, use
+`makepkg -fsi`.
+
+### Other distributions / from source
 
 ```
 sudo pacman -S ffmpeg python          # or your distribution's packages
@@ -32,16 +51,26 @@ sudo pacman -S ffmpeg python          # or your distribution's packages
 ./start.sh rip                        # same arguments as python -m psyrip
 ```
 
-Differences from Windows:
+### Differences from Windows
 
 - Settings live in `~/.config/psyrip` (instead of `%APPDATA%\psyrip`); the default output folder is the XDG music folder.
-- CD drives are `/dev/sr0`, `/dev/sr1` … Reading uses SG_IO (READ TOC / READ CD). The user needs read/write access to the
-  device (group `optical` or the usual uaccess ACL of the desktop session). Secure ripping, offset detection and AccurateRip
-  were tested with a real disc.
+- CD drives are `/dev/sr0`, `/dev/sr1` … psyrip sends SCSI commands to the drive via SG_IO (READ TOC, READ CD, SET CD SPEED).
+  The user needs read/write access to the device (group `optical` or the usual uaccess ACL of the desktop session).
+  The data read is byte-identical to `cd-paranoia`.
+- Eject uses SCSI (ALLOW MEDIUM REMOVAL + START STOP UNIT) in the background – the kernel ioctl `CDROMEJECT` alone does not open
+  the tray while another process holds the drive open. Opening takes a few seconds (the disc spins down).
 - “Desktop integration” in the Control Center creates a start menu entry, “Open with” entries and a Dolphin context menu
-  (submenu “psyrip”) under `~/.local/share` instead of the Explorer entries.
+  (submenu “psyrip”) under `~/.local/share` instead of the Explorer entries; “Remove entries” deletes them again.
 - “Shut down after ripping” uses `shutdown -h +1` (cancel: `shutdown -c`), “Low priority” uses `nice`.
+- The Control Center shows Unicode symbols instead of the Windows icon font (Segoe Fluent Icons).
 - The Windows EXE/installer (`build.bat`) is Windows-only.
+
+### Tests
+
+`tests/test_linux.py` covers the Linux parts without hardware (including the drive with simulated SCSI responses).
+`tests/test_cd_hardware.py` only runs with `PSYRIP_HW_TEST=1` and an audio CD in the drive: TOC, repeatable reads, comparison with
+`cd-paranoia`, secure rip with AccurateRip confirmation; `PSYRIP_HW_EJECT=1` also opens and closes the tray.
+`PSYRIP_HW_DRIVE=/dev/sr1` selects another drive.
 
 ## Installer / EXE
 
@@ -56,7 +85,7 @@ bundled `bin` → `PATH`.
 ## Language
 
 * Default: English. Switch under *Settings → Language*; the change is fully applied after restarting psyrip (the dialog offers a restart).
-* Stored in `%APPDATA%\psyrip\config.json` (`"language": "en" | "de"`); the environment variable `PSYRIP_LANG` overrides it.
+* Stored in `%APPDATA%\psyrip\config.json` (Linux: `~/.config/psyrip/config.json`) (`"language": "en" | "de"`); the environment variable `PSYRIP_LANG` overrides it.
 * The source text in the code is German; `psyrip/translations.py` maps every string to English, `psyrip/i18n.py` provides `tr()`.
   `tests/test_i18n.py` makes sure every `tr()` key has an English entry and that placeholders match.
 
@@ -82,13 +111,13 @@ bundled `bin` → `PATH`.
 | Batch Converter: folder tree with check marks, filter (type/artist), property list, drag & drop | ✔ |
 | ID Tag Editor: multi-file editing with `<different>`, paging, cover (file/clipboard/Folder.jpg/internet), autocompletion | ✔ |
 | Utilities: Audio Info, Calculate Audio CRC, Arrange Audio, Tag From Filename, ID Tag Update, Length Split, Channel Split, Multi-Encoder, ReplayGain | ✔ |
-| CD Ripper: TOC, burst, secure (multi-pass, each pass read sequentially so the drive spins up, re-reads with a per-track budget), drive offset (auto-detect), AccurateRip v1/v2, Rip as One, profiles, track menu, abort rules, mark-as-error, eject/shutdown, read speed and CRC per track | ✔ tested with real discs (12/12 tracks secure and AccurateRip-confirmed; secure rip ~12–15× on an LG BH10LS30); damaged discs untested |
+| CD Ripper: TOC, burst, secure (multi-pass, each pass read sequentially so the drive spins up, re-reads with a per-track budget), drive offset (auto-detect), AccurateRip v1/v2, Rip as One, profiles, track menu, abort rules, mark-as-error, eject/shutdown, read speed and CRC per track | ✔ tested with real discs (Windows: 12/12 tracks secure and AccurateRip-confirmed, secure rip ~12–15× on an LG BH10LS30; Linux: secure rip AccurateRip-confirmed, ~10× on the same drive model, offset auto-detected, eject tested); damaged discs untested |
 | CD Ripper: disc is read and metadata loaded automatically when the ripper opens (can be turned off); fields are cleared for a new disc | ✔ |
 | CD Ripper: metadata providers (MusicBrainz, GnuDB, Discogs with token), barcode, manual search incl. URL, review dialog, cover from the internet | ✔ MusicBrainz tested live; the GnuDB server was unreachable during testing (parser tested); Discogs untested without a token |
 | CD Ripper: HTOA, lead-in/-out overread | ✔ code present, **not tested on a suitable disc** |
-| CD Ripper: C2 error pointers | ✘ the Windows driver interface provides none; errors are detected by multi-pass majority vote |
-| Control Center: codec overview, internet switch, ffmpeg/theme/language/tag fields, Explorer context menu (HKCU) | ✔ (property handler, thumbnails, popup info ✘ – would need a native shell extension) |
-| Command line: `python -m psyrip cli` / `psyrip.exe cli` | ✔ |
+| CD Ripper: C2 error pointers | ✘ the Windows driver interface provides none; on Linux they could be requested via READ CD but are not (yet). Errors are detected by multi-pass majority vote |
+| Control Center: codec overview, internet switch, ffmpeg/theme/language/tag fields, Explorer context menu (HKCU) or, on Linux, start menu, “Open with” and Dolphin menu | ✔ (property handler, thumbnails, popup info ✘ – would need a native shell extension) |
+| Command line: `python -m psyrip cli` / `psyrip.exe cli` / `psyrip cli` (Linux package) | ✔ |
 
 ## Architecture
 
@@ -101,8 +130,13 @@ psyrip/
   tags.py, tagproc.py   mutagen layer, tag rules
   analysis.py   loudness, peak, audio hash, probing (ffprobe or ffmpeg -i)
   utilities.py  utilities
-  cdrip.py, ripper.py   TOC/IOCTL, ripping, AccurateRip, metadata providers, rip session
+  cdrip.py, ripper.py   TOC, drive access (Windows IOCTL / Linux SG_IO), ripping, AccurateRip, metadata providers, rip session
+  paths.py      config and music folder per platform
   i18n.py, translations.py   language switching (English default, German)
-  gui/          Control Center, converter, batch, tag editor, CD ripper, utilities, theme
+  gui/          Control Center, converter, batch, tag editor, CD ripper, utilities, theme;
+                shell_linux.py: desktop integration on Linux
 tests/          pytest; tools/screenshots.py renders all windows as PNG
+packaging/arch/ PKGBUILD for Arch/CachyOS
+build.bat, installer/   Windows EXE and Inno Setup installer
+start.bat, start.sh     run from source (Windows / Linux)
 ```
