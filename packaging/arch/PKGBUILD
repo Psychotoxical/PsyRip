@@ -15,9 +15,11 @@ checkdepends=('python-pytest')
 source=("$pkgname::git+$url.git#branch=main")
 sha256sums=('SKIP')
 
+# Version = psyrip.__version__ + Commit-Zählung + Hash, z. B. 0.3.0.r9.gf3be44c – so erkennt pacman jeden neuen Build als Update
 pkgver() {
   cd "$pkgname"
-  python -c "import psyrip; print(psyrip.__version__)"
+  printf "%s.r%s.g%s" "$(python -c "import psyrip; print(psyrip.__version__)")" \
+    "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
 }
 
 check() {

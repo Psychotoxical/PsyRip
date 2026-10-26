@@ -40,8 +40,8 @@ psyrip rip | convert <files> | tags <files> | cli …
 ```
 
 The package provides the `psyrip` command, a start menu entry and the icon. It builds what is on GitHub – local changes only
-after a push. The package version comes from `psyrip/__init__.py`; to install a new build with the same version on top, use
-`makepkg -fsi`.
+after a push. The package version combines `psyrip.__version__`, the commit count and the commit hash (e.g. `0.3.0.r9.gf3be44c`),
+so pacman sees every new build as an update. To update, run `makepkg -si` again.
 
 ### Other distributions / from source
 
