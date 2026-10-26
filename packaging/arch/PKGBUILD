@@ -1,7 +1,7 @@
 # Arch/CachyOS-Paket für psyrip. Baut den aktuellen Stand von main auf GitHub:
 #   cd packaging/arch && makepkg -si
 pkgname=psyrip
-pkgver=0.3.0
+pkgver=0.3.0.r10.g91fd861
 pkgrel=1
 pkgdesc="Audio-Toolkit: Music/Batch Converter, CD Ripper (Secure + AccurateRip), ID-Tag-Editor, DSP"
 arch=('any')
